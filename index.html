@@ -509,9 +509,20 @@ r("questions").on("value", function(snap) {
   if (!questionSeeded) {
     questionSeeded = true;
     SEEDED.forEach(function(q){
+      var key = q.text.trim().toLowerCase();
+      var sameTextId = null;
+      Object.values(state.questions).forEach(function(existing) {
+        if (existing.id !== q.id && existing.text.trim().toLowerCase() === key) sameTextId = existing.id;
+      });
+
       if (!state.questions[q.id]) {
-        r("questions/"+q.id).set(q);
+        // Seeded ID not in Firebase — only add if no question with same text exists
+        if (!sameTextId) r("questions/"+q.id).set(q);
+      } else if (sameTextId) {
+        // Seeded ID AND a duplicate text both exist → remove the seeded copy, keep user's version
+        r("questions/"+q.id).remove();
       } else {
+        // Only the seeded version exists — update asked/answer if needed
         var updates = {};
         if (q.asked && !state.questions[q.id].asked) updates.asked = true;
         if (q.answer && !state.questions[q.id].answer) updates.answer = q.answer;
