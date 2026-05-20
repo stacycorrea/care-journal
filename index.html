@@ -176,11 +176,21 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 
 <div class="panel" id="panel-questions">
   <div class="sec-head"><h2>Questions for <em>Care Team</em></h2><button class="btn btn-blue" onclick="tog('f-questions')">+ Add</button></div>
+  <div id="q-filter-row" style="margin-bottom:14px;display:flex;flex-wrap:wrap;gap:6px"></div>
   <div class="form-box" id="f-questions">
     <div class="form-row"><div class="fg"><label>Question</label><textarea id="q-text" rows="2" placeholder="e.g. What does imaging show vs. 1998?"></textarea></div></div>
     <div class="form-row">
-      <div class="fg"><label>Who to Ask</label><input id="q-provider" placeholder="e.g. Neurosurgeon"/></div>
+      <div class="fg"><label>Who to Ask</label><select id="q-provider" onchange="handleProviderSelect()"></select></div>
       <div class="fg"><label>Category</label><select id="q-cat"><option>Diagnosis</option><option>Treatment Options</option><option>Prognosis</option><option>Logistics / Discharge</option><option>Medications</option><option>Quality of Life</option><option>Other</option></select></div>
+    </div>
+    <div id="new-provider-row" style="display:none;margin-bottom:10px;display:none">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="fg"><label>New Name</label><input id="new-provider-input" placeholder="e.g. Oncologist" onkeydown="if(event.key==='Enter')saveNewProvider()"/></div>
+        <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+          <button class="btn btn-blue" onclick="saveNewProvider()">Add</button>
+          <button class="btn btn-ghost" onclick="cancelNewProvider()">Cancel</button>
+        </div>
+      </div>
     </div>
     <button class="btn btn-blue" onclick="addQuestion()">Save Question</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="tog('f-questions')">Cancel</button>
@@ -268,20 +278,26 @@ window.switchTab = function(btn, name) {
 
 // ── Seeded questions ─────────────────────────────────────────────────────────
 var SEEDED = [
-  {id:"sq-n1",text:"What kind of effects should I expect after going through the procedure and how will my life change?",provider:"Neurologist",category:"Prognosis",asked:false,answer:""},
-  {id:"sq-n2",text:"What contribution can I make in effort to aid and accelerate the healing process?",provider:"Neurologist",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-n3",text:"What do I need to know about FMLA — what paperwork is needed and who handles it?",provider:"Neurologist",category:"Logistics / Discharge",asked:false,answer:""},
-  {id:"sq-s1",text:"Can you walk me through exactly what you're going to do, step by step, in specific detail?",provider:"Surgeon",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-s2",text:"What size will the hole be? (e.g. in thousandths of an inch)",provider:"Surgeon",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-s3",text:"What will the depth of the procedure be, and will it go straight down?",provider:"Surgeon",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-s4",text:"Will the tumor be directly accessible or will other tissue be in the way?",provider:"Surgeon",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-s5",text:"Will there be multiple biopsy sites for different tumor types, and could there be multiple incision sites?",provider:"Surgeon",category:"Treatment Options",asked:false,answer:""},
-  {id:"sq-s6",text:"What time will the surgery be?",provider:"Surgeon",category:"Logistics / Discharge",asked:false,answer:""}
+  {id:"sq-n1",text:"What kind of effects should I expect after going through the procedure and how will my life change?",provider:"Neurologist",category:"Prognosis",asked:true,answer:"Just a couple days of recovery and you'll be back to normal"},
+  {id:"sq-n2",text:"What contribution can I make in effort to aid and accelerate the healing process?",provider:"Neurologist",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-n3",text:"What do I need to know about FMLA — what paperwork is needed and who handles it?",provider:"Neurologist",category:"Logistics / Discharge",asked:true,answer:""},
+  {id:"sq-n4",text:"When will I start Radiation/steroids/chemo?",provider:"Neurologist",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-n5",text:"What do the following days, weeks, and months look like as far as office visits, MRIs, radiation, chemo visits etc. And if we don't have that answer now at what point will all of that be determined.",provider:"Neurologist",category:"Diagnosis",asked:true,answer:""},
+  {id:"sq-s1",text:"Can you walk me through exactly what you're going to do, step by step, in specific detail?",provider:"Surgeon",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-s2",text:"What size will the hole be? (e.g. in thousandths of an inch)",provider:"Surgeon",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-s3",text:"What will the depth of the procedure be, and will it go straight down?",provider:"Surgeon",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-s4",text:"Will the tumor be directly accessible or will other tissue be in the way?",provider:"Surgeon",category:"Treatment Options",asked:true,answer:""},
+  {id:"sq-s5",text:"Will there be multiple biopsy sites for different tumor types, and could there be multiple incision sites?",provider:"Surgeon",category:"Treatment Options",asked:true,answer:"No, only one."},
+  {id:"sq-s6",text:"What time will the surgery be?",provider:"Surgeon",category:"Logistics / Discharge",asked:true,answer:""},
+  {id:"sq-dad1",text:"Huh?",provider:"Dad",category:"Other",asked:true,answer:""},
+  {id:"sq-mau1",text:"Shut the fuck up.",provider:"Maurice",category:"Quality of Life",asked:true,answer:""}
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
 var state = {patient:{},events:{},actions:{},questions:{},notes:{},contacts:{}};
 var ansId = null;
+var questionFilter = "All";
+var providers = ["Care Team","Neurologist","Surgeon","Dad","Maurice"];
 
 // ── Patient ──────────────────────────────────────────────────────────────────
 window.savePatient = function() {
@@ -316,11 +332,17 @@ window.deleteEvent = function(id) {
   r("events/"+id).remove();
 };
 
+var EVENT_SEEDS = [
+  {id:"seed-1998",date:"1998-01-01",time:"",type:"milestone",title:"Original tumor resection",detail:"Tumor surgically removed. Update with actual date and details."},
+  {id:"seed-mri-0517",date:"2026-05-17",time:"",type:"event",title:"MRI reviewed by Dr. Wu",detail:""},
+  {id:"seed-biopsy-0519",date:"2026-05-19",time:"",type:"event",title:"Brain Biopsy",detail:"Performed by Dr. Steinberg."},
+  {id:"seed-ct-0519",date:"2026-05-19",time:"",type:"event",title:"Post op CT Head",detail:"showed minimal bleeding that is to be expected. all other abnormalities consistent with post brain biopsy"},
+  {id:"seed-tumor-board",date:"2026-05-22",time:"",type:"milestone",title:"UCSD Tumor Board Meets",detail:""}
+];
+
 r("events").on("value", function(snap) {
   state.events = snap.val()||{};
-  if (!Object.keys(state.events).length) {
-    r("events/seed-1998").set({id:"seed-1998",date:"1998-01-01",time:"",type:"milestone",title:"Original tumor resection",detail:"Tumor surgically removed. Update with actual date and details."});
-  }
+  EVENT_SEEDS.forEach(function(ev){ if(!state.events[ev.id]) r("events/"+ev.id).set(ev); });
   renderTimeline();
 });
 
@@ -382,13 +404,84 @@ function renderActions() {
   }).join("");
 }
 
+// ── Providers ────────────────────────────────────────────────────────────────
+function renderProviderSelect() {
+  var sel = document.getElementById("q-provider");
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = providers.map(function(p){
+    return '<option value="'+esc(p)+'">'+esc(p)+'</option>';
+  }).join("") + '<option value="__add__" style="color:#2d5a8e;font-style:italic">＋ Add new…</option>';
+  if (cur && cur !== "__add__" && providers.indexOf(cur) !== -1) sel.value = cur;
+  renderFilterPills();
+}
+
+function renderFilterPills() {
+  var row = document.getElementById("q-filter-row");
+  if (!row) return;
+  var all = ["All"].concat(providers);
+  row.innerHTML = all.map(function(p){
+    var active = p === questionFilter;
+    return '<button onclick="setQuestionFilter(\''+p.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#2d5a8e":"#d4cfc5")+';background:'+(active?"#2d5a8e":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(p)+'</button>';
+  }).join("");
+}
+
+window.setQuestionFilter = function(p) {
+  questionFilter = p;
+  renderFilterPills();
+  renderQuestions();
+};
+
+window.handleProviderSelect = function() {
+  var row = document.getElementById("new-provider-row");
+  if (gv("q-provider") === "__add__") {
+    row.style.display = "block";
+    setTimeout(function(){ document.getElementById("new-provider-input").focus(); }, 50);
+  } else {
+    row.style.display = "none";
+  }
+};
+
+window.saveNewProvider = function() {
+  var raw = document.getElementById("new-provider-input").value.trim();
+  if (!raw) return;
+  var name = raw.replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+  if (providers.indexOf(name) === -1) {
+    providers.push(name);
+    r("providers").set(providers);
+  }
+  renderProviderSelect();
+  document.getElementById("q-provider").value = name;
+  document.getElementById("new-provider-row").style.display = "none";
+  document.getElementById("new-provider-input").value = "";
+};
+
+window.cancelNewProvider = function() {
+  document.getElementById("q-provider").value = providers[0] || "Care Team";
+  document.getElementById("new-provider-row").style.display = "none";
+  document.getElementById("new-provider-input").value = "";
+};
+
+r("providers").on("value", function(snap) {
+  var val = snap.val();
+  if (val) {
+    providers = Array.isArray(val) ? val : Object.values(val);
+  } else {
+    r("providers").set(providers);
+  }
+  renderProviderSelect();
+});
+
 // ── Questions ────────────────────────────────────────────────────────────────
 window.addQuestion = function() {
   var text = gv("q-text").trim();
   if (!text) { alert("Please enter a question."); return; }
+  var prov = gv("q-provider");
+  if (!prov || prov === "__add__") prov = "Care Team";
   var id = uid();
-  r("questions/"+id).set({id:id, text:text, asked:false, answer:"", provider:gv("q-provider").trim()||"Care Team", category:gv("q-cat")});
-  sv("q-text",""); sv("q-provider",""); sv("q-cat","Diagnosis");
+  r("questions/"+id).set({id:id, text:text, asked:false, answer:"", provider:prov, category:gv("q-cat")});
+  sv("q-text",""); sv("q-cat","Diagnosis");
+  document.getElementById("new-provider-row").style.display = "none";
   tog("f-questions");
 };
 
@@ -410,15 +503,31 @@ window.saveAnswer = function(id) {
 window.cancelAnswer = function() { ansId=null; renderQuestions(); };
 window.deleteQuestion = function(id) { r("questions/"+id).remove(); };
 
+var questionSeeded = false;
 r("questions").on("value", function(snap) {
   state.questions = snap.val()||{};
-  SEEDED.forEach(function(q){ if(!state.questions[q.id]) r("questions/"+q.id).set(q); });
+  if (!questionSeeded) {
+    questionSeeded = true;
+    SEEDED.forEach(function(q){
+      if (!state.questions[q.id]) {
+        r("questions/"+q.id).set(q);
+      } else {
+        var updates = {};
+        if (q.asked && !state.questions[q.id].asked) updates.asked = true;
+        if (q.answer && !state.questions[q.id].answer) updates.answer = q.answer;
+        if (Object.keys(updates).length) r("questions/"+q.id).update(updates);
+      }
+    });
+  }
   renderQuestions();
 });
 
 function renderQuestions() {
   var list = document.getElementById("question-list");
   var items = Object.values(state.questions);
+  if (questionFilter !== "All") {
+    items = items.filter(function(q){ return (q.provider||"Care Team") === questionFilter; });
+  }
   if (!items.length) { list.innerHTML=""; show("q-empty"); return; }
   hide("q-empty");
   list.innerHTML = items.map(function(q) {
