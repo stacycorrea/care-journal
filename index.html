@@ -297,6 +297,7 @@ var SEEDED = [
 var state = {patient:{},events:{},actions:{},questions:{},notes:{},contacts:{}};
 var ansId = null;
 var questionFilter = "All";
+var questionStatusFilter = "All";
 var providers = ["Care Team","Neurologist","Surgeon","Dad","Maurice"];
 
 // ── Patient ──────────────────────────────────────────────────────────────────
@@ -419,12 +420,27 @@ function renderProviderSelect() {
 function renderFilterPills() {
   var row = document.getElementById("q-filter-row");
   if (!row) return;
-  var all = ["All"].concat(providers);
-  row.innerHTML = all.map(function(p){
+
+  var statusPills = ["All","Unanswered","Answered"].map(function(s){
+    var active = s === questionStatusFilter;
+    return '<button onclick="setStatusFilter(\''+s+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#3a6b5a":"#d4cfc5")+';background:'+(active?"#3a6b5a":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+s+'</button>';
+  }).join("");
+
+  var providerPills = ["All"].concat(providers).map(function(p){
     var active = p === questionFilter;
     return '<button onclick="setQuestionFilter(\''+p.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#2d5a8e":"#d4cfc5")+';background:'+(active?"#2d5a8e":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(p)+'</button>';
   }).join("");
+
+  row.innerHTML =
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">'+statusPills+'</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px">'+providerPills+'</div>';
 }
+
+window.setStatusFilter = function(s) {
+  questionStatusFilter = s;
+  renderFilterPills();
+  renderQuestions();
+};
 
 window.setQuestionFilter = function(p) {
   questionFilter = p;
@@ -536,6 +552,20 @@ r("questions").on("value", function(snap) {
 function renderQuestions() {
   var list = document.getElementById("question-list");
   var items = Object.values(state.questions);
+
+  // Deduplicate by text — prefer the version that has been asked/answered
+  var seenTexts = {};
+  items.forEach(function(q) {
+    var key = q.text.trim().toLowerCase();
+    if (!seenTexts[key] || (!seenTexts[key].asked && q.asked)) seenTexts[key] = q;
+  });
+  items = Object.values(seenTexts);
+
+  if (questionStatusFilter === "Answered") {
+    items = items.filter(function(q){ return q.asked; });
+  } else if (questionStatusFilter === "Unanswered") {
+    items = items.filter(function(q){ return !q.asked; });
+  }
   if (questionFilter !== "All") {
     items = items.filter(function(q){ return (q.provider||"Care Team") === questionFilter; });
   }
