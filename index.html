@@ -637,8 +637,6 @@ function renderQuestions() {
   if (!items.length) { list.innerHTML=""; show("q-empty"); return; }
   hide("q-empty");
   var FQ = "border:1px solid #d4cfc5;padding:7px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:6px";
-  var provOpts = providers.map(function(p){ return '<option value="'+esc(p)+'"'+(p===q.provider?" selected":"")+'>'+esc(p)+'</option>'; });
-  var catOpts = ["Diagnosis","Treatment Options","Prognosis","Logistics / Discharge","Medications","Quality of Life","Other"].map(function(c){ return '<option'+(c===q.category?" selected":"")+'>'+c+'</option>'; });
   list.innerHTML = items.map(function(q) {
     var provOpts = providers.map(function(p){ return '<option value="'+esc(p)+'"'+(p===(q.provider||"Care Team")?" selected":"")+'>'+esc(p)+'</option>'; }).join("");
     var catOpts = ["Diagnosis","Treatment Options","Prognosis","Logistics / Discharge","Medications","Quality of Life","Other"].map(function(c){ return '<option'+(c===q.category?" selected":"")+'>'+c+'</option>'; }).join("");
