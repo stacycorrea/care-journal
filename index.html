@@ -116,6 +116,12 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 @keyframes mic-pulse{0%,100%{transform:scale(1);box-shadow:0 4px 16px rgba(0,0,0,0.25)}50%{transform:scale(1.12);box-shadow:0 4px 24px rgba(192,57,43,0.5)}}
 .voice-toast{position:fixed;bottom:96px;right:16px;left:16px;max-width:360px;margin:0 auto;background:#1a1a2e;color:#f5f0e8;padding:13px 16px;font-family:'IBM Plex Mono',monospace;font-size:0.73rem;line-height:1.5;letter-spacing:0.04em;z-index:1001;opacity:0;transition:opacity 0.3s;pointer-events:none;border-left:3px solid #c9a84c}
 .voice-toast.show{opacity:1}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(30,20,10,0.6);z-index:2000;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal-box{background:#faf7f2;border:1px solid #d4cfc5;padding:26px 24px 22px;max-width:480px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.22);border-radius:3px}
+.modal-title{font-family:'Playfair Display',serif;font-size:1.08rem;font-weight:600;color:#2a2420;margin-bottom:5px}
+.modal-sub{font-family:'IBM Plex Sans',sans-serif;font-size:0.81rem;color:#7a7068;margin-bottom:20px;line-height:1.55;border-left:3px solid #3a6b5a;padding-left:10px;background:#f5f0e8;padding:8px 12px;border-radius:0 3px 3px 0}
+.modal-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -254,6 +260,24 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 
 </div><!-- /content -->
 </div><!-- /app -->
+
+<!-- ── Task → Timeline Modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="timeline-modal">
+  <div class="modal-box">
+    <div class="modal-title">Add to Event Timeline?</div>
+    <div class="modal-sub" id="modal-task-preview"></div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="fg" style="flex:1"><label>Date</label><input type="date" id="modal-ev-date"/></div>
+      <div class="fg" style="flex:1"><label>Type</label><select id="modal-ev-type"></select></div>
+    </div>
+    <div class="form-row"><div class="fg"><label>Title</label><input id="modal-ev-title" placeholder="Event title"/></div></div>
+    <div class="form-row"><div class="fg"><label>Details</label><textarea id="modal-ev-detail" rows="3" placeholder="Add context, outcomes, or next steps…" style="resize:vertical"></textarea></div></div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="saveToTimeline()">✓ Yes, Add to Timeline</button>
+      <button class="btn btn-ghost" onclick="closeTimelineModal()">No thanks</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // Wait for Firebase compat SDKs to load, then run everything
@@ -433,7 +457,13 @@ window.addAction = function() {
 
 window.toggleAction = function(id) {
   var ac = state.actions[id];
-  if (ac) r("actions/"+id+"/done").set(!ac.done);
+  if (!ac) return;
+  var newDone = !ac.done;
+  r("actions/"+id+"/done").set(newDone);
+  if (newDone) {
+    // Brief pause so Firebase write settles, then offer timeline link
+    setTimeout(function(){ openTimelineModal(ac); }, 250);
+  }
 };
 
 window.deleteAction = function(id) { r("actions/"+id).remove(); };
@@ -575,21 +605,26 @@ r("providers").on("value", function(snap) {
 });
 
 // ── Event Types ──────────────────────────────────────────────────────────────
-function renderEventTypeSelect() {
-  var sel = document.getElementById("ev-type");
-  if (!sel) return;
-  var cur = sel.value;
+// Shared helper — builds <option> list for any type select
+function buildTypeOptions(selectedKey) {
   var builtIn = [
     {key:"event",    label:"Medical Event"},
     {key:"note",     label:"Observation"},
     {key:"action",   label:"Action Taken"},
     {key:"milestone",label:"Milestone"}
   ];
-  var allTypes = builtIn.concat(customEventTypes);
-  sel.innerHTML = allTypes.map(function(tp){
-    return '<option value="'+tp.key+'">'+tp.label+'</option>';
-  }).join("") + '<option value="__add__" style="color:#8b3a3a;font-style:italic">＋ Add new type…</option>';
-  if (cur && cur !== "__add__" && allTypes.some(function(tp){ return tp.key === cur; })) sel.value = cur;
+  return builtIn.concat(customEventTypes).map(function(tp){
+    return '<option value="'+tp.key+'"'+(tp.key===selectedKey?" selected":"")+'>'+tp.label+'</option>';
+  }).join("");
+}
+
+function renderEventTypeSelect() {
+  var sel = document.getElementById("ev-type");
+  if (!sel) return;
+  var cur = sel.value || "event";
+  sel.innerHTML = buildTypeOptions(cur) + '<option value="__add__" style="color:#8b3a3a;font-style:italic">＋ Add new type…</option>';
+  var allKeys = ["event","note","action","milestone"].concat(customEventTypes.map(function(ct){return ct.key;}));
+  if (cur && cur !== "__add__" && allKeys.indexOf(cur) !== -1) sel.value = cur;
 }
 
 function renderTimelineFilterPills() {
@@ -648,6 +683,46 @@ window.cancelNewEventType = function() {
   document.getElementById("ev-type").value = "event";
   document.getElementById("new-event-type-row").style.display = "none";
   document.getElementById("new-event-type-input").value = "";
+};
+
+// ── Task → Timeline Modal ────────────────────────────────────────────────────
+function openTimelineModal(ac) {
+  var modal = document.getElementById("timeline-modal");
+  // Pre-fill date: use task's due date if set, otherwise today
+  document.getElementById("modal-ev-date").value = ac.due || today();
+  // Default type to "Action Taken" since this is a completed task
+  document.getElementById("modal-ev-type").innerHTML = buildTypeOptions("action");
+  // Pre-fill title from task title
+  document.getElementById("modal-ev-title").value = ac.title || "";
+  document.getElementById("modal-ev-detail").value = "";
+  // Show a preview of the task being linked
+  var preview = document.getElementById("modal-task-preview");
+  var snippet = (ac.title || "").substring(0, 90) + ((ac.title||"").length > 90 ? "…" : "");
+  preview.textContent = "Task completed: “" + snippet + "”";
+  modal.classList.add("open");
+  setTimeout(function(){ document.getElementById("modal-ev-detail").focus(); }, 120);
+}
+
+window.closeTimelineModal = function() {
+  document.getElementById("timeline-modal").classList.remove("open");
+};
+
+window.saveToTimeline = function() {
+  var title = document.getElementById("modal-ev-title").value.trim();
+  if (!title) { alert("Please enter a title for the timeline event."); return; }
+  var id = uid();
+  r("events/"+id).set({
+    id:     id,
+    date:   document.getElementById("modal-ev-date").value || today(),
+    time:   "",
+    type:   document.getElementById("modal-ev-type").value,
+    title:  title,
+    detail: document.getElementById("modal-ev-detail").value.trim()
+  });
+  closeTimelineModal();
+  // Switch to Timeline tab so user can see the new entry
+  var timelineBtn = document.querySelector(".tab[onclick*='timeline']");
+  if (timelineBtn) switchTab(timelineBtn, "timeline");
 };
 
 r("eventTypes").on("value", function(snap) {
