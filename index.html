@@ -80,7 +80,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 .ac.done{opacity:0.55;background:#ede8dc}
 .ac input[type=checkbox]{width:18px;height:18px;accent-color:#3a6b5a;flex-shrink:0;margin-top:2px}
 .ac-text{flex:1}
-.ac-title{font-size:0.92rem;font-weight:500;margin-bottom:2px}
+.ac-title{font-size:0.92rem;font-weight:500;margin-bottom:2px;white-space:pre-wrap}
 .ac.done .ac-title{text-decoration:line-through}
 .ac-meta{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#7a7068}
 .pri{font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;padding:2px 7px;border-radius:2px;flex-shrink:0;margin-top:2px}
@@ -147,10 +147,20 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 
 <div class="panel active" id="panel-timeline">
   <div class="sec-head"><h2>Event <em>Timeline</em></h2><button class="btn" onclick="tog('f-timeline')">+ Add Event</button></div>
+  <div id="tl-filter-row" style="margin-bottom:12px"></div>
   <div class="form-box" id="f-timeline">
     <div class="form-row">
       <div class="fg" style="flex:1"><label>Date</label><input type="date" id="ev-date"/></div>
-      <div class="fg" style="flex:1"><label>Type</label><select id="ev-type"><option value="event">Medical Event</option><option value="note">Observation</option><option value="action">Action Taken</option><option value="milestone">Milestone</option></select></div>
+      <div class="fg" style="flex:1"><label>Type</label><select id="ev-type" onchange="handleEventTypeSelect()"></select></div>
+    </div>
+    <div id="new-event-type-row" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="fg"><label>New Type Name</label><input id="new-event-type-input" placeholder="e.g. Lab Result" onkeydown="if(event.key==='Enter')saveNewEventType()"/></div>
+        <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+          <button class="btn" onclick="saveNewEventType()">Add</button>
+          <button class="btn btn-ghost" onclick="cancelNewEventType()">Cancel</button>
+        </div>
+      </div>
     </div>
     <div class="form-row"><div class="fg"><label>Title</label><input id="ev-title" placeholder="e.g. MRI reviewed by Dr. Smith"/></div></div>
     <div class="form-row"><div class="fg"><label>Details</label><textarea id="ev-detail" rows="3" placeholder="Context, findings, next steps…"></textarea></div></div>
@@ -165,7 +175,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
   <div class="sec-head"><h2>Action <em>Items</em></h2><button class="btn btn-green" onclick="tog('f-actions')">+ Add Item</button></div>
   <div class="form-box" id="f-actions">
     <div class="form-row">
-      <div class="fg" style="flex:2"><label>Task</label><input id="ac-title" placeholder="e.g. Request 1998 pathology report"/></div>
+      <div class="fg" style="flex:2"><label>Task</label><textarea id="ac-title" rows="3" placeholder="e.g. Request 1998 pathology report&#10;- Step 1&#10;- Step 2" style="resize:vertical"></textarea></div>
       <div class="fg" style="flex:1"><label>Priority</label><select id="ac-priority"><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
     </div>
     <div class="form-row">
@@ -309,6 +319,8 @@ var editActionId = null;
 var editQuestionId = null;
 var editNoteId = null;
 var editContactId = null;
+var eventTypeFilter = "All";
+var customEventTypes = [];
 
 // ── Patient ──────────────────────────────────────────────────────────────────
 window.savePatient = function() {
@@ -322,6 +334,8 @@ r("patient").on("value", function(snap) {
 
 // ── Timeline ─────────────────────────────────────────────────────────────────
 sv("ev-date", today());
+// Populate event type select immediately (function is hoisted)
+setTimeout(function(){ renderEventTypeSelect(); }, 0);
 var typeMap = {
   event:    {label:"Medical Event", color:"#8b3a3a"},
   note:     {label:"Observation",   color:"#2d5a8e"},
@@ -332,9 +346,13 @@ var typeMap = {
 window.addEvent = function() {
   var title = gv("ev-title").trim();
   if (!title) { alert("Please enter a title."); return; }
+  var type = gv("ev-type");
+  if (!type || type === "__add__") type = "event";
   var id = uid();
-  r("events/"+id).set({id:id, date:gv("ev-date")||today(), time:"", type:gv("ev-type"), title:title, detail:gv("ev-detail").trim()});
-  sv("ev-title",""); sv("ev-detail",""); sv("ev-type","event"); sv("ev-date",today());
+  r("events/"+id).set({id:id, date:gv("ev-date")||today(), time:"", type:type, title:title, detail:gv("ev-detail").trim()});
+  sv("ev-title",""); sv("ev-detail",""); sv("ev-date",today());
+  document.getElementById("new-event-type-row").style.display = "none";
+  renderEventTypeSelect();
   tog("f-timeline");
 };
 
@@ -349,6 +367,7 @@ window.saveEditEvent = function(id) {
   if (!title) { alert("Please enter a title."); return; }
   r("events/"+id).update({ title:title, date:document.getElementById("ee-date-"+id).value||today(), type:document.getElementById("ee-type-"+id).value, detail:document.getElementById("ee-detail-"+id).value.trim() });
   editEventId = null;
+  renderTimeline();
 };
 
 var EVENT_SEEDS = [
@@ -366,24 +385,33 @@ r("events").on("value", function(snap) {
 });
 
 function renderTimeline() {
+  // Sync custom types into typeMap
+  customEventTypes.forEach(function(ct) {
+    typeMap[ct.key] = {label: ct.label, color: ct.color || "#7a5a8e"};
+  });
+  // Render filter pills
+  renderTimelineFilterPills();
+
   var list = document.getElementById("timeline-list");
-  var items = Object.values(state.events).sort(function(a,b){ return new Date(b.date+"T"+(b.time||"00:00"))-new Date(a.date+"T"+(a.time||"00:00")); });
+  var allItems = Object.values(state.events).sort(function(a,b){ return new Date(b.date+"T"+(b.time||"00:00"))-new Date(a.date+"T"+(a.time||"00:00")); });
+  var items = eventTypeFilter === "All" ? allItems : allItems.filter(function(ev){ return ev.type === eventTypeFilter; });
   if (!items.length) { list.innerHTML=""; show("tl-empty"); return; }
   hide("tl-empty");
   var F = "border:1px solid #d4cfc5;padding:7px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:6px";
+  // Build full type list for edit selects
+  var builtInTypes = [{key:"event",label:"Medical Event"},{key:"note",label:"Observation"},{key:"action",label:"Action Taken"},{key:"milestone",label:"Milestone"}];
+  var allTypes = builtInTypes.concat(customEventTypes);
   list.innerHTML = items.map(function(ev) {
     var t = typeMap[ev.type]||typeMap.event;
     if (editEventId === ev.id) {
+      var typeOpts = allTypes.map(function(tp){
+        return '<option value="'+tp.key+'"'+(ev.type===tp.key?" selected":"")+'>'+tp.label+'</option>';
+      }).join("");
       return '<div class="ev"><div class="ev-date">'+fmtD(ev.date)+'</div><div class="ev-dot" style="background:'+t.color+'"></div>'
         +'<div class="ev-body"><input id="ee-title-'+ev.id+'" value="'+esc(ev.title)+'" placeholder="Title" style="'+F+'"/>'
         +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
         +'<input type="date" id="ee-date-'+ev.id+'" value="'+esc(ev.date||today())+'" style="flex:1;min-width:130px;'+F+'margin-bottom:0"/>'
-        +'<select id="ee-type-'+ev.id+'" style="flex:1;min-width:130px;'+F+'margin-bottom:0">'
-        +'<option value="event"'+(ev.type==="event"?" selected":"")+'>Medical Event</option>'
-        +'<option value="note"'+(ev.type==="note"?" selected":"")+'>Observation</option>'
-        +'<option value="action"'+(ev.type==="action"?" selected":"")+'>Action Taken</option>'
-        +'<option value="milestone"'+(ev.type==="milestone"?" selected":"")+'>Milestone</option>'
-        +'</select></div>'
+        +'<select id="ee-type-'+ev.id+'" style="flex:1;min-width:130px;'+F+'margin-bottom:0">'+typeOpts+'</select></div>'
         +'<textarea id="ee-detail-'+ev.id+'" rows="2" placeholder="Details (optional)" style="'+F+'resize:vertical">'+esc(ev.detail||"")+'</textarea>'
         +'<div style="display:flex;gap:6px"><button class="btn btn-green" style="font-size:0.68rem;padding:6px 12px" onclick="saveEditEvent(\''+ev.id+'\')">Save</button>'
         +'<button class="btn btn-ghost" style="font-size:0.68rem;padding:6px 12px" onclick="cancelEditEvent()">Cancel</button></div>'
@@ -416,6 +444,7 @@ window.saveEditAction = function(id) {
   if (!title) { alert("Please enter a task."); return; }
   r("actions/"+id).update({ title:title, priority:document.getElementById("ea-priority-"+id).value, owner:document.getElementById("ea-owner-"+id).value.trim(), due:document.getElementById("ea-due-"+id).value });
   editActionId = null;
+  renderActions();
 };
 
 r("actions").on("value", function(snap) {
@@ -442,7 +471,7 @@ function renderActions() {
     var p = pmap[ac.priority]||pmap.medium;
     if (editActionId === ac.id) {
       return '<div class="ac" style="flex-direction:column;align-items:stretch;gap:8px">'
-        +'<input id="ea-title-'+ac.id+'" value="'+esc(ac.title)+'" placeholder="Task" style="'+FA+';width:100%"/>'
+        +'<textarea id="ea-title-'+ac.id+'" rows="3" placeholder="Task" style="'+FA+';width:100%;resize:vertical">'+esc(ac.title)+'</textarea>'
         +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
         +'<select id="ea-priority-'+ac.id+'" style="'+FA+';flex:1;min-width:100px"><option value="high"'+(ac.priority==="high"?" selected":"")+'>High</option><option value="medium"'+(ac.priority==="medium"?" selected":"")+'>Medium</option><option value="low"'+(ac.priority==="low"?" selected":"")+'>Low</option></select>'
         +'<input id="ea-owner-'+ac.id+'" value="'+esc(ac.owner||"")+'" placeholder="Owner" style="'+FA+';flex:1;min-width:100px"/>'
@@ -545,6 +574,97 @@ r("providers").on("value", function(snap) {
   renderProviderSelect();
 });
 
+// ── Event Types ──────────────────────────────────────────────────────────────
+function renderEventTypeSelect() {
+  var sel = document.getElementById("ev-type");
+  if (!sel) return;
+  var cur = sel.value;
+  var builtIn = [
+    {key:"event",    label:"Medical Event"},
+    {key:"note",     label:"Observation"},
+    {key:"action",   label:"Action Taken"},
+    {key:"milestone",label:"Milestone"}
+  ];
+  var allTypes = builtIn.concat(customEventTypes);
+  sel.innerHTML = allTypes.map(function(tp){
+    return '<option value="'+tp.key+'">'+tp.label+'</option>';
+  }).join("") + '<option value="__add__" style="color:#8b3a3a;font-style:italic">＋ Add new type…</option>';
+  if (cur && cur !== "__add__" && allTypes.some(function(tp){ return tp.key === cur; })) sel.value = cur;
+}
+
+function renderTimelineFilterPills() {
+  var row = document.getElementById("tl-filter-row");
+  if (!row) return;
+  var builtIn = [
+    {key:"event",    label:"Medical Event", color:"#8b3a3a"},
+    {key:"note",     label:"Observation",   color:"#2d5a8e"},
+    {key:"action",   label:"Action Taken",  color:"#3a6b5a"},
+    {key:"milestone",label:"Milestone",     color:"#c9a84c"}
+  ];
+  var allTypes = [{key:"All", label:"All", color:"#555"}].concat(builtIn).concat(customEventTypes);
+  var pills = allTypes.map(function(tp){
+    var active = tp.key === eventTypeFilter;
+    var col = tp.color || "#7a5a8e";
+    return '<button onclick="setEventTypeFilter(\''+tp.key+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?col:"#d4cfc5")+';background:'+(active?col:"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+tp.label+'</button>';
+  }).join("");
+  row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
+}
+
+window.setEventTypeFilter = function(key) {
+  eventTypeFilter = key;
+  renderTimeline();
+};
+
+window.handleEventTypeSelect = function() {
+  var row = document.getElementById("new-event-type-row");
+  if (gv("ev-type") === "__add__") {
+    row.style.display = "block";
+    setTimeout(function(){ document.getElementById("new-event-type-input").focus(); }, 50);
+  } else {
+    row.style.display = "none";
+  }
+};
+
+window.saveNewEventType = function() {
+  var raw = document.getElementById("new-event-type-input").value.trim();
+  if (!raw) return;
+  var label = raw.replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+  var key = raw.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  var builtInKeys = ["event","note","action","milestone"];
+  var alreadyExists = builtInKeys.indexOf(key) !== -1 || customEventTypes.some(function(ct){ return ct.key === key; });
+  if (!alreadyExists) {
+    var palette = ["#7a5a8e","#2d7a6a","#8b6a3a","#5a3a8e","#3a7a5a","#8e3a6b","#5a6b3a","#6b3a5a"];
+    var color = palette[customEventTypes.length % palette.length];
+    customEventTypes.push({key:key, label:label, color:color});
+    r("eventTypes").set(customEventTypes);
+  }
+  renderEventTypeSelect();
+  document.getElementById("ev-type").value = key;
+  document.getElementById("new-event-type-row").style.display = "none";
+  document.getElementById("new-event-type-input").value = "";
+};
+
+window.cancelNewEventType = function() {
+  document.getElementById("ev-type").value = "event";
+  document.getElementById("new-event-type-row").style.display = "none";
+  document.getElementById("new-event-type-input").value = "";
+};
+
+r("eventTypes").on("value", function(snap) {
+  var val = snap.val();
+  if (val) {
+    customEventTypes = Array.isArray(val) ? val : Object.values(val);
+  } else {
+    customEventTypes = [];
+  }
+  // Sync into typeMap
+  customEventTypes.forEach(function(ct) {
+    typeMap[ct.key] = {label: ct.label, color: ct.color || "#7a5a8e"};
+  });
+  renderEventTypeSelect();
+  renderTimeline();
+});
+
 // ── Questions ────────────────────────────────────────────────────────────────
 window.addQuestion = function() {
   var text = gv("q-text").trim();
@@ -582,6 +702,7 @@ window.saveEditQuestion = function(id) {
   if (!text) { alert("Please enter the question."); return; }
   r("questions/"+id).update({ text:text, provider:document.getElementById("eq-prov-"+id).value, category:document.getElementById("eq-cat-"+id).value });
   editQuestionId = null;
+  renderQuestions();
 };
 
 var questionSeeded = false;
@@ -682,6 +803,7 @@ window.cancelEditNote = function() { editNoteId = null; renderNotes(); };
 window.saveEditNote = function(id) {
   r("notes/"+id).update({ title:document.getElementById("en-title-"+id).value.trim()||"(untitled)", category:document.getElementById("en-cat-"+id).value, body:document.getElementById("en-body-"+id).value.trim() });
   editNoteId = null;
+  renderNotes();
 };
 
 r("notes").on("value", function(snap) {
@@ -743,6 +865,7 @@ window.saveEditContact = function(id) {
   if (!name) { alert("Please enter a name."); return; }
   r("contacts/"+id).update({ name:name, role:document.getElementById("ec-role-"+id).value, dept:document.getElementById("ec-dept-"+id).value.trim(), phone:document.getElementById("ec-phone-"+id).value.trim(), email:document.getElementById("ec-email-"+id).value.trim(), bestTime:document.getElementById("ec-time-"+id).value.trim(), notes:document.getElementById("ec-notes-"+id).value.trim() });
   editContactId = null;
+  renderContacts();
 };
 
 r("contacts").on("value", function(snap) {
