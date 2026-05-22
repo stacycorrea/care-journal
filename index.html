@@ -58,6 +58,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 .btn{background:#8b3a3a;color:#fff;padding:9px 16px;font-size:0.72rem;letter-spacing:0.08em;display:inline-flex;align-items:center;gap:5px;border:none}
 .btn-green{background:#3a6b5a}.btn-blue{background:#2d5a8e}.btn-purple{background:#6b3a8b}
 .btn-ghost{background:transparent;color:#8b3a3a;border:1px solid #8b3a3a}
+.btn-teal{background:#2d7a8a;color:#fff;border:1px solid #2d7a8a}.btn-teal:hover{background:#246878}
 .btn-sm-blue{background:transparent;color:#2d5a8e;border:1px solid #2d5a8e;padding:5px 10px;font-size:0.68rem;font-family:'IBM Plex Mono',monospace;letter-spacing:0.06em;border-radius:2px;cursor:pointer}
 .btn-sm-green{background:transparent;color:#3a6b5a;border:1px solid #3a6b5a;padding:5px 10px;font-size:0.68rem;font-family:'IBM Plex Mono',monospace;letter-spacing:0.06em;border-radius:2px;cursor:pointer}
 .del{background:none;color:#ccc;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;padding:4px 6px;min-width:28px;min-height:28px;border:none}
@@ -108,6 +109,15 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 .cc-links{display:flex;flex-direction:column;gap:4px}
 .cc-notes{font-size:0.82rem;color:#4a4540;line-height:1.6;margin-top:8px;padding:6px 10px;background:#f5f0e8;border-left:2px solid #d4cfc5}
 .grp-head{font-size:0.63rem;text-transform:uppercase;letter-spacing:0.12em;font-family:'IBM Plex Mono',monospace;color:#7a7068;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #d4cfc5;margin-top:8px}
+.appt-card{background:#fff;border:1px solid #d4cfc5;border-left:4px solid #2d7a8a;padding:13px 14px;margin-bottom:8px;border-radius:0 3px 3px 0}
+.appt-card.done-appt{opacity:0.7;border-left-color:#3a6b5a}
+.appt-type{font-size:0.62rem;text-transform:uppercase;letter-spacing:0.08em;font-family:'IBM Plex Mono',monospace;color:#2d7a8a;margin-bottom:3px}
+.appt-card.done-appt .appt-type{color:#3a6b5a}
+.appt-title{font-size:0.92rem;font-weight:500;margin-bottom:2px}
+.appt-meta{font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:#7a7068;margin-bottom:4px}
+.appt-notes{font-size:0.82rem;color:#4a4540;line-height:1.6;margin-top:6px;padding:6px 10px;background:#f5f0e8;border-left:2px solid #d4cfc5}
+.appt-complete-badge{font-size:0.6rem;letter-spacing:0.08em;text-transform:uppercase;font-family:'IBM Plex Mono',monospace;padding:2px 8px;border-radius:2px;background:#e8f5e9;color:#3a6b5a;display:inline-block;margin-bottom:5px}
+.appt-section-head{font-size:0.63rem;text-transform:uppercase;letter-spacing:0.12em;font-family:'IBM Plex Mono',monospace;color:#7a7068;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #d4cfc5;margin-top:8px}
 #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;font-family:'Playfair Display',serif;color:#7a7068;font-style:italic;font-size:1.1rem;gap:12px}
 .spinner{width:32px;height:32px;border:3px solid #d4cfc5;border-top-color:#8b3a3a;border-radius:50%;animation:spin 0.8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -147,6 +157,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
   <button class="tab" onclick="switchTab(this,'questions')">Questions</button>
   <button class="tab" onclick="switchTab(this,'notes')">Notes</button>
   <button class="tab" onclick="switchTab(this,'contacts')">Contacts</button>
+  <button class="tab" onclick="switchTab(this,'appointments')">Appointments</button>
 </div>
 
 <div id="content">
@@ -157,6 +168,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
   <div class="form-box" id="f-timeline">
     <div class="form-row">
       <div class="fg" style="flex:1"><label>Date</label><input type="date" id="ev-date"/></div>
+      <div class="fg" style="flex:1"><label>Time</label><input type="time" id="ev-time"/></div>
       <div class="fg" style="flex:1"><label>Type</label><select id="ev-type" onchange="handleEventTypeSelect()"></select></div>
     </div>
     <div id="new-event-type-row" style="display:none;margin-bottom:10px">
@@ -187,6 +199,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
     <div class="form-row">
       <div class="fg"><label>Assigned To</label><input id="ac-owner" placeholder="Family / Social worker"/></div>
       <div class="fg"><label>Due Date</label><input type="date" id="ac-due"/></div>
+      <div class="fg"><label>Due Time</label><input type="time" id="ac-due-time"/></div>
     </div>
     <button class="btn btn-green" onclick="addAction()">Save Item</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="tog('f-actions')">Cancel</button>
@@ -268,6 +281,36 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
   <div class="empty" id="c-empty" style="display:none">No contacts yet.</div>
 </div>
 
+<div class="panel" id="panel-appointments">
+  <div class="sec-head"><h2>Upcoming <em>Appointments</em></h2><button class="btn btn-teal" onclick="tog('f-appointments')">+ Add</button></div>
+  <div id="appt-filter-row" style="margin-bottom:12px"></div>
+  <div class="form-box" id="f-appointments">
+    <div class="form-row">
+      <div class="fg" style="flex:1"><label>Date</label><input type="date" id="ap-date"/></div>
+      <div class="fg" style="flex:1"><label>Time</label><input type="time" id="ap-time"/></div>
+      <div class="fg" style="flex:1"><label>Type</label><select id="ap-type" onchange="handleApptTypeSelect()"></select></div>
+    </div>
+    <div id="new-appt-type-row" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="fg"><label>New Appointment Type</label><input id="new-appt-type-input" placeholder="e.g. Oncology" onkeydown="if(event.key==='Enter')saveNewApptType()"/></div>
+        <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+          <button class="btn btn-teal" onclick="saveNewApptType()">Add</button>
+          <button class="btn btn-ghost" onclick="cancelNewApptType()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg"><label>Provider / Doctor</label><input id="ap-provider" placeholder="e.g. Dr. Wu"/></div>
+      <div class="fg"><label>Location</label><input id="ap-location" placeholder="e.g. UCSD Perlman Center"/></div>
+    </div>
+    <div class="form-row"><div class="fg"><label>Purpose / Notes</label><textarea id="ap-notes" rows="2" placeholder="What this appointment is for…" style="resize:vertical"></textarea></div></div>
+    <button class="btn btn-teal" onclick="addAppointment()">Save Appointment</button>
+    <button class="btn btn-ghost" style="margin-left:8px" onclick="tog('f-appointments')">Cancel</button>
+  </div>
+  <div id="appt-list"></div>
+  <div class="empty" id="appt-empty" style="display:none">No appointments yet.</div>
+</div>
+
 </div><!-- /content -->
 </div><!-- /app -->
 
@@ -278,6 +321,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
     <div class="modal-sub" id="modal-task-preview"></div>
     <div class="form-row" style="margin-top:14px">
       <div class="fg" style="flex:1"><label>Date</label><input type="date" id="modal-ev-date"/></div>
+      <div class="fg" style="flex:1"><label>Time</label><input type="time" id="modal-ev-time"/></div>
       <div class="fg" style="flex:1"><label>Type</label><select id="modal-ev-type"></select></div>
     </div>
     <div class="form-row"><div class="fg"><label>Title</label><input id="modal-ev-title" placeholder="Event title"/></div></div>
@@ -285,6 +329,21 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
     <div class="modal-actions">
       <button class="btn btn-green" onclick="saveToTimeline()">✓ Yes, Add to Timeline</button>
       <button class="btn btn-ghost" onclick="closeTimelineModal()">No thanks</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Appointment Complete Modal ────────────────────────────────────────── -->
+<div class="modal-overlay" id="appt-complete-modal">
+  <div class="modal-box">
+    <div class="modal-title">Mark Appointment Complete</div>
+    <div class="modal-sub" id="appt-complete-preview"></div>
+    <div class="form-row" style="margin-top:14px">
+      <div class="fg"><label>What was discussed / what happened</label><textarea id="appt-complete-notes" rows="5" placeholder="Diagnosis updates, instructions given, medications changed, follow-up steps…" style="resize:vertical"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-green" onclick="saveApptComplete()">✓ Mark Complete</button>
+      <button class="btn btn-ghost" onclick="closeApptCompleteModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -314,6 +373,7 @@ function show(id)  { document.getElementById(id).style.display="block"; }
 function hide(id)  { document.getElementById(id).style.display="none"; }
 function today()   { return new Date().toISOString().split("T")[0]; }
 function fmtD(d)   { if(!d) return ""; var dt=new Date(d+(d.indexOf("T")<0?"T12:00:00":"")); return dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}); }
+function fmtTime(t){ if(!t) return ""; var p=t.split(":"); var h=parseInt(p[0],10); var m=p[1]||"00"; return (h%12||12)+":"+m+" "+(h>=12?"PM":"AM"); }
 function fmtTS(i)  { var d=new Date(i); return d.toLocaleDateString("en-US",{month:"short",day:"numeric"})+" "+d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}); }
 function r(path)   { return db.ref(R+"/"+path); }
 
@@ -343,7 +403,7 @@ var SEEDED = [
 ];
 
 // ── State ────────────────────────────────────────────────────────────────────
-var state = {patient:{},events:{},actions:{},questions:{},notes:{},contacts:{}};
+var state = {patient:{},events:{},actions:{},questions:{},notes:{},contacts:{},appointments:{}};
 var ansId = null;
 var questionFilter = "All";
 var questionStatusFilter = "All";
@@ -357,6 +417,10 @@ var eventTypeFilter = "All";
 var customEventTypes = [];
 var contactOrgFilter = "All";
 var contactOrgs = ["Humana","UCSD","Perlman"];
+var apptTypeFilter = "All";
+var apptTypes = ["PCP","Imaging","Neurology","Neurosurgery","Physical Therapy","Home Health"];
+var editApptId = null;
+var apptCompleteId = null;
 
 // ── Patient ──────────────────────────────────────────────────────────────────
 window.savePatient = function() {
@@ -385,8 +449,8 @@ window.addEvent = function() {
   var type = gv("ev-type");
   if (!type || type === "__add__") type = "event";
   var id = uid();
-  r("events/"+id).set({id:id, date:gv("ev-date")||today(), time:"", type:type, title:title, detail:gv("ev-detail").trim()});
-  sv("ev-title",""); sv("ev-detail",""); sv("ev-date",today());
+  r("events/"+id).set({id:id, date:gv("ev-date")||today(), time:gv("ev-time"), type:type, title:title, detail:gv("ev-detail").trim()});
+  sv("ev-title",""); sv("ev-detail",""); sv("ev-date",today()); sv("ev-time","");
   document.getElementById("new-event-type-row").style.display = "none";
   renderEventTypeSelect();
   tog("f-timeline");
@@ -401,7 +465,7 @@ window.cancelEditEvent = function() { editEventId = null; renderTimeline(); };
 window.saveEditEvent = function(id) {
   var title = document.getElementById("ee-title-"+id).value.trim();
   if (!title) { alert("Please enter a title."); return; }
-  r("events/"+id).update({ title:title, date:document.getElementById("ee-date-"+id).value||today(), type:document.getElementById("ee-type-"+id).value, detail:document.getElementById("ee-detail-"+id).value.trim() });
+  r("events/"+id).update({ title:title, date:document.getElementById("ee-date-"+id).value||today(), time:document.getElementById("ee-time-"+id).value, type:document.getElementById("ee-type-"+id).value, detail:document.getElementById("ee-detail-"+id).value.trim() });
   editEventId = null;
   renderTimeline();
 };
@@ -443,17 +507,18 @@ function renderTimeline() {
       var typeOpts = allTypes.map(function(tp){
         return '<option value="'+tp.key+'"'+(ev.type===tp.key?" selected":"")+'>'+tp.label+'</option>';
       }).join("");
-      return '<div class="ev"><div class="ev-date">'+fmtD(ev.date)+'</div><div class="ev-dot" style="background:'+t.color+'"></div>'
+      return '<div class="ev"><div class="ev-date">'+fmtD(ev.date)+(ev.time?'<div style="font-size:0.62rem;margin-top:2px">'+fmtTime(ev.time)+'</div>':"")+'</div><div class="ev-dot" style="background:'+t.color+'"></div>'
         +'<div class="ev-body"><input id="ee-title-'+ev.id+'" value="'+esc(ev.title)+'" placeholder="Title" style="'+F+'"/>'
         +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
-        +'<input type="date" id="ee-date-'+ev.id+'" value="'+esc(ev.date||today())+'" style="flex:1;min-width:130px;'+F+'margin-bottom:0"/>'
-        +'<select id="ee-type-'+ev.id+'" style="flex:1;min-width:130px;'+F+'margin-bottom:0">'+typeOpts+'</select></div>'
+        +'<input type="date" id="ee-date-'+ev.id+'" value="'+esc(ev.date||today())+'" style="flex:1;min-width:120px;'+F+'margin-bottom:0"/>'
+        +'<input type="time" id="ee-time-'+ev.id+'" value="'+esc(ev.time||"")+'" style="flex:1;min-width:100px;'+F+'margin-bottom:0"/>'
+        +'<select id="ee-type-'+ev.id+'" style="flex:1;min-width:120px;'+F+'margin-bottom:0">'+typeOpts+'</select></div>'
         +'<textarea id="ee-detail-'+ev.id+'" rows="2" placeholder="Details (optional)" style="'+F+'resize:vertical">'+esc(ev.detail||"")+'</textarea>'
         +'<div style="display:flex;gap:6px"><button class="btn btn-green" style="font-size:0.68rem;padding:6px 12px" onclick="saveEditEvent(\''+ev.id+'\')">Save</button>'
         +'<button class="btn btn-ghost" style="font-size:0.68rem;padding:6px 12px" onclick="cancelEditEvent()">Cancel</button></div>'
         +'</div></div>';
     }
-    return '<div class="ev"><div class="ev-date">'+fmtD(ev.date)+'</div><div class="ev-dot" style="background:'+t.color+'"></div><div class="ev-body"><div class="ev-type" style="color:'+t.color+'">'+t.label+'</div><div class="ev-title">'+esc(ev.title)+'</div>'+(ev.detail?'<div class="ev-detail">'+esc(ev.detail)+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px"><button class="btn-sm-blue" onclick="openEditEvent(\''+ev.id+'\')">✏ edit</button><button class="del" onclick="deleteEvent(\''+ev.id+'\')">✕ remove</button></div></div></div>';
+    return '<div class="ev"><div class="ev-date">'+fmtD(ev.date)+(ev.time?'<div style="font-size:0.62rem;margin-top:2px">'+fmtTime(ev.time)+'</div>':"")+'</div><div class="ev-dot" style="background:'+t.color+'"></div><div class="ev-body"><div class="ev-type" style="color:'+t.color+'">'+t.label+'</div><div class="ev-title">'+esc(ev.title)+'</div>'+(ev.detail?'<div class="ev-detail">'+esc(ev.detail)+'</div>':'')+'<div style="margin-top:8px;display:flex;gap:6px"><button class="btn-sm-blue" onclick="openEditEvent(\''+ev.id+'\')">✏ edit</button><button class="del" onclick="deleteEvent(\''+ev.id+'\')">✕ remove</button></div></div></div>';
   }).join("");
 }
 
@@ -462,8 +527,8 @@ window.addAction = function() {
   var title = gv("ac-title").trim();
   if (!title) { alert("Please enter a task."); return; }
   var id = uid();
-  r("actions/"+id).set({id:id, done:false, title:title, priority:gv("ac-priority"), owner:gv("ac-owner").trim(), due:gv("ac-due")});
-  sv("ac-title",""); sv("ac-owner",""); sv("ac-due",""); sv("ac-priority","high");
+  r("actions/"+id).set({id:id, done:false, title:title, priority:gv("ac-priority"), owner:gv("ac-owner").trim(), due:gv("ac-due"), dueTime:gv("ac-due-time")});
+  sv("ac-title",""); sv("ac-owner",""); sv("ac-due",""); sv("ac-due-time",""); sv("ac-priority","high");
   tog("f-actions");
 };
 
@@ -484,7 +549,7 @@ window.cancelEditAction = function() { editActionId = null; renderActions(); };
 window.saveEditAction = function(id) {
   var title = document.getElementById("ea-title-"+id).value.trim();
   if (!title) { alert("Please enter a task."); return; }
-  r("actions/"+id).update({ title:title, priority:document.getElementById("ea-priority-"+id).value, owner:document.getElementById("ea-owner-"+id).value.trim(), due:document.getElementById("ea-due-"+id).value });
+  r("actions/"+id).update({ title:title, priority:document.getElementById("ea-priority-"+id).value, owner:document.getElementById("ea-owner-"+id).value.trim(), due:document.getElementById("ea-due-"+id).value, dueTime:document.getElementById("ea-due-time-"+id).value });
   editActionId = null;
   renderActions();
 };
@@ -518,6 +583,7 @@ function renderActions() {
         +'<select id="ea-priority-'+ac.id+'" style="'+FA+';flex:1;min-width:100px"><option value="high"'+(ac.priority==="high"?" selected":"")+'>High</option><option value="medium"'+(ac.priority==="medium"?" selected":"")+'>Medium</option><option value="low"'+(ac.priority==="low"?" selected":"")+'>Low</option></select>'
         +'<input id="ea-owner-'+ac.id+'" value="'+esc(ac.owner||"")+'" placeholder="Owner" style="'+FA+';flex:1;min-width:100px"/>'
         +'<input type="date" id="ea-due-'+ac.id+'" value="'+esc(ac.due||"")+'" style="'+FA+';flex:1;min-width:120px"/>'
+        +'<input type="time" id="ea-due-time-'+ac.id+'" value="'+esc(ac.dueTime||"")+'" style="'+FA+';flex:1;min-width:100px"/>'
         +'</div>'
         +'<div style="display:flex;gap:6px"><button class="btn btn-green" style="font-size:0.68rem;padding:6px 12px" onclick="saveEditAction(\''+ac.id+'\')">Save</button>'
         +'<button class="btn btn-ghost" style="font-size:0.68rem;padding:6px 12px" onclick="cancelEditAction()">Cancel</button></div>'
@@ -526,7 +592,7 @@ function renderActions() {
     return '<div class="ac'+(ac.done?" done":"")+'">'
       +'<input type="checkbox" '+(ac.done?"checked":"")+ ' onchange="toggleAction(\''+ac.id+'\')" />'
       +'<div class="ac-text"><div class="ac-title">'+esc(ac.title)+'</div>'
-      +'<div class="ac-meta">'+(ac.owner?esc(ac.owner):"")+(ac.owner&&ac.due?" · ":"")+(ac.due?fmtD(ac.due):"")+'</div></div>'
+      +'<div class="ac-meta">'+(ac.owner?esc(ac.owner):"")+(ac.owner&&ac.due?" · ":"")+(ac.due?fmtD(ac.due)+(ac.dueTime?" "+fmtTime(ac.dueTime):""):"")+'</div></div>'
       +'<span class="pri '+p.cls+'">'+p.label+'</span>'
       +'<button class="btn-sm-blue" style="padding:4px 8px;font-size:0.62rem" onclick="openEditAction(\''+ac.id+'\')">✏</button>'
       +'<button class="del" onclick="deleteAction(\''+ac.id+'\')">✕</button></div>';
@@ -700,8 +766,9 @@ window.cancelNewEventType = function() {
 // ── Task → Timeline Modal ────────────────────────────────────────────────────
 function openTimelineModal(ac) {
   var modal = document.getElementById("timeline-modal");
-  // Pre-fill date: use task's due date if set, otherwise today
+  // Pre-fill date/time: use task's due date/time if set, otherwise today
   document.getElementById("modal-ev-date").value = ac.due || today();
+  document.getElementById("modal-ev-time").value = ac.dueTime || "";
   // Default type to "Action Taken" since this is a completed task
   document.getElementById("modal-ev-type").innerHTML = buildTypeOptions("action");
   // Pre-fill title from task title
@@ -726,7 +793,7 @@ window.saveToTimeline = function() {
   r("events/"+id).set({
     id:     id,
     date:   document.getElementById("modal-ev-date").value || today(),
-    time:   "",
+    time:   document.getElementById("modal-ev-time").value || "",
     type:   document.getElementById("modal-ev-type").value,
     title:  title,
     detail: document.getElementById("modal-ev-detail").value.trim()
@@ -1094,6 +1161,195 @@ r("contactOrgs").on("value", function(snap) {
   renderContactOrgSelect();
   renderContacts();
 });
+
+// ── Appointments ─────────────────────────────────────────────────────────────
+setTimeout(function(){ renderApptTypeSelect(); sv("ap-date", today()); }, 0);
+
+window.addAppointment = function() {
+  var type = gv("ap-type");
+  if (!type || type === "__add__") type = "Appointment";
+  var id = uid();
+  r("appointments/"+id).set({id:id, date:gv("ap-date")||today(), time:gv("ap-time"), type:type, provider:gv("ap-provider").trim(), location:gv("ap-location").trim(), notes:gv("ap-notes").trim(), completed:false, completedNotes:""});
+  ["ap-provider","ap-location","ap-notes"].forEach(function(x){sv(x,"");});
+  sv("ap-date",today()); sv("ap-time","");
+  document.getElementById("new-appt-type-row").style.display = "none";
+  renderApptTypeSelect();
+  tog("f-appointments");
+};
+
+window.deleteAppointment = function(id) {
+  if (!confirm("Remove this appointment?")) return;
+  r("appointments/"+id).remove();
+};
+
+window.openEditAppt = function(id) { editApptId = id; renderAppointments(); setTimeout(function(){ var el=document.getElementById("ea-appt-provider-"+id); if(el)el.focus(); },50); };
+window.cancelEditAppt = function() { editApptId = null; renderAppointments(); };
+window.saveEditAppt = function(id) {
+  r("appointments/"+id).update({
+    date:     document.getElementById("ea-appt-date-"+id).value || today(),
+    time:     document.getElementById("ea-appt-time-"+id).value,
+    type:     document.getElementById("ea-appt-type-"+id).value,
+    provider: document.getElementById("ea-appt-provider-"+id).value.trim(),
+    location: document.getElementById("ea-appt-location-"+id).value.trim(),
+    notes:    document.getElementById("ea-appt-notes-"+id).value.trim()
+  });
+  editApptId = null;
+  renderAppointments();
+};
+
+window.openApptCompleteModal = function(id) {
+  apptCompleteId = id;
+  var ap = state.appointments[id];
+  if (!ap) return;
+  var dateStr = fmtD(ap.date) + (ap.time ? " · " + fmtTime(ap.time) : "");
+  var preview = document.getElementById("appt-complete-preview");
+  preview.textContent = (ap.type||"Appointment") + (ap.provider ? " with " + ap.provider : "") + (dateStr ? " — " + dateStr : "");
+  document.getElementById("appt-complete-notes").value = ap.completedNotes || "";
+  document.getElementById("appt-complete-modal").classList.add("open");
+  setTimeout(function(){ document.getElementById("appt-complete-notes").focus(); }, 100);
+};
+
+window.closeApptCompleteModal = function() {
+  document.getElementById("appt-complete-modal").classList.remove("open");
+  apptCompleteId = null;
+};
+
+window.saveApptComplete = function() {
+  if (!apptCompleteId) return;
+  r("appointments/"+apptCompleteId).update({
+    completed:      true,
+    completedNotes: document.getElementById("appt-complete-notes").value.trim()
+  });
+  closeApptCompleteModal();
+};
+
+window.handleApptTypeSelect = function() {
+  var row = document.getElementById("new-appt-type-row");
+  if (gv("ap-type") === "__add__") {
+    row.style.display = "block";
+    setTimeout(function(){ document.getElementById("new-appt-type-input").focus(); }, 50);
+  } else {
+    row.style.display = "none";
+  }
+};
+
+window.saveNewApptType = function() {
+  var raw = document.getElementById("new-appt-type-input").value.trim();
+  if (!raw) return;
+  var name = raw.replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+  if (apptTypes.indexOf(name) === -1) {
+    apptTypes.push(name);
+    r("apptTypes").set(apptTypes);
+  }
+  renderApptTypeSelect();
+  document.getElementById("ap-type").value = name;
+  document.getElementById("new-appt-type-row").style.display = "none";
+  document.getElementById("new-appt-type-input").value = "";
+};
+
+window.cancelNewApptType = function() {
+  document.getElementById("ap-type").value = apptTypes[0] || "PCP";
+  document.getElementById("new-appt-type-row").style.display = "none";
+  document.getElementById("new-appt-type-input").value = "";
+};
+
+function renderApptTypeSelect() {
+  var sel = document.getElementById("ap-type");
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = apptTypes.map(function(t){
+    return '<option value="'+esc(t)+'">'+esc(t)+'</option>';
+  }).join("") + '<option value="__add__" style="color:#2d7a8a;font-style:italic">＋ Add new type…</option>';
+  if (cur && cur !== "__add__" && apptTypes.indexOf(cur) !== -1) sel.value = cur;
+}
+
+function renderApptFilterPills() {
+  var row = document.getElementById("appt-filter-row");
+  if (!row) return;
+  var pills = ["All"].concat(apptTypes).map(function(t){
+    var active = t === apptTypeFilter;
+    return '<button onclick="setApptTypeFilter(\''+t.replace(/'/g,"\\'")+'\'')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#2d7a8a":"#d4cfc5")+';background:'+(active?"#2d7a8a":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(t)+'</button>';
+  }).join("");
+  row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
+}
+
+window.setApptTypeFilter = function(type) {
+  apptTypeFilter = type;
+  renderAppointments();
+};
+
+r("apptTypes").on("value", function(snap) {
+  var val = snap.val();
+  if (val) {
+    apptTypes = Array.isArray(val) ? val : Object.values(val);
+  } else {
+    r("apptTypes").set(apptTypes);
+  }
+  renderApptTypeSelect();
+  renderApptFilterPills();
+});
+
+r("appointments").on("value", function(snap) {
+  state.appointments = snap.val() || {};
+  renderAppointments();
+});
+
+function renderAppointments() {
+  renderApptFilterPills();
+  var list = document.getElementById("appt-list");
+  if (!list) return;
+  var all = Object.values(state.appointments || {});
+  var filtered = apptTypeFilter === "All" ? all : all.filter(function(ap){ return ap.type === apptTypeFilter; });
+  if (!filtered.length) { list.innerHTML = ""; show("appt-empty"); return; }
+  hide("appt-empty");
+  var todayStr = today();
+  var upcoming = filtered.filter(function(ap){ return !ap.completed && ap.date >= todayStr; })
+    .sort(function(a,b){ return new Date(a.date+"T"+(a.time||"00:00")) - new Date(b.date+"T"+(b.time||"00:00")); });
+  var past = filtered.filter(function(ap){ return ap.completed || ap.date < todayStr; })
+    .sort(function(a,b){ return new Date(b.date+"T"+(b.time||"00:00")) - new Date(a.date+"T"+(a.time||"00:00")); });
+  var FA = "border:1px solid #d4cfc5;padding:6px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:5px";
+  function renderApptCard(ap) {
+    if (editApptId === ap.id) {
+      var typeOptsE = apptTypes.slice();
+      if (ap.type && typeOptsE.indexOf(ap.type) === -1) typeOptsE.unshift(ap.type);
+      var typeSelOpts = typeOptsE.map(function(t){ return '<option value="'+esc(t)+'"'+(t===ap.type?" selected":"")+'>'+esc(t)+'</option>'; }).join("");
+      return '<div class="appt-card">'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+        +'<input type="date" id="ea-appt-date-'+ap.id+'" value="'+esc(ap.date||todayStr)+'" style="flex:1;min-width:120px;'+FA+'margin-bottom:0"/>'
+        +'<input type="time" id="ea-appt-time-'+ap.id+'" value="'+esc(ap.time||"")+'" style="flex:1;min-width:100px;'+FA+'margin-bottom:0"/>'
+        +'<select id="ea-appt-type-'+ap.id+'" style="flex:1;min-width:120px;'+FA+'margin-bottom:0">'+typeSelOpts+'</select>'
+        +'</div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+        +'<input id="ea-appt-provider-'+ap.id+'" value="'+esc(ap.provider||"")+'" placeholder="Provider / Doctor" style="flex:1;min-width:150px;'+FA+'margin-bottom:0"/>'
+        +'<input id="ea-appt-location-'+ap.id+'" value="'+esc(ap.location||"")+'" placeholder="Location" style="flex:1;min-width:150px;'+FA+'margin-bottom:0"/>'
+        +'</div>'
+        +'<textarea id="ea-appt-notes-'+ap.id+'" rows="2" placeholder="Purpose / notes" style="'+FA+'resize:vertical">'+esc(ap.notes||"")+'</textarea>'
+        +'<div style="display:flex;gap:6px">'
+        +'<button class="btn btn-green" style="font-size:0.68rem;padding:6px 12px" onclick="saveEditAppt(\''+ap.id+'\')">Save</button>'
+        +'<button class="btn btn-ghost" style="font-size:0.68rem;padding:6px 12px" onclick="cancelEditAppt()">Cancel</button>'
+        +'</div></div>';
+    }
+    var dateStr = fmtD(ap.date) + (ap.time ? " · " + fmtTime(ap.time) : "");
+    return '<div class="appt-card'+(ap.completed?" done-appt":"")+'"><div style="display:flex;justify-content:space-between;align-items:flex-start">'
+      +'<div style="flex:1">'
+      +(ap.completed ? '<div><span class="appt-complete-badge">✓ Complete</span></div>' : "")
+      +'<div class="appt-type">'+esc(ap.type||"")+'</div>'
+      +'<div class="appt-title">'+(ap.provider ? esc(ap.provider) : "Appointment")+'</div>'
+      +'<div class="appt-meta">'+dateStr+(ap.location ? " · "+esc(ap.location) : "")+'</div>'
+      +(!ap.completed && ap.notes ? '<div class="appt-notes">'+esc(ap.notes)+'</div>' : "")
+      +(ap.completed && ap.completedNotes ? '<div class="appt-notes">'+esc(ap.completedNotes)+'</div>' : "")
+      +'</div>'
+      +'<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;margin-left:10px">'
+      +(!ap.completed ? '<button class="btn-sm-green" style="font-size:0.6rem;padding:4px 9px;white-space:nowrap" onclick="openApptCompleteModal(\''+ap.id+'\')">✓ Done</button>' : "")
+      +'<button class="btn-sm-blue" style="padding:3px 8px;font-size:0.62rem" onclick="openEditAppt(\''+ap.id+'\')">✏</button>'
+      +'<button class="del" onclick="deleteAppointment(\''+ap.id+'\')">✕</button>'
+      +'</div></div></div>';
+  }
+  var html = "";
+  if (upcoming.length) html += '<div class="appt-section-head">Upcoming</div>' + upcoming.map(renderApptCard).join("");
+  if (past.length)     html += '<div class="appt-section-head">Past / Completed</div>' + past.map(renderApptCard).join("");
+  list.innerHTML = html;
+}
 
 // ── Show app ─────────────────────────────────────────────────────────────────
 document.getElementById("loading").style.display = "none";
