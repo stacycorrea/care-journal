@@ -101,6 +101,8 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 .nc-title{font-size:0.93rem;font-weight:500}
 .nc-ts{font-family:'IBM Plex Mono',monospace;font-size:0.67rem;color:#7a7068}
 .nc-body{font-size:0.85rem;color:#4a4540;line-height:1.65;white-space:pre-wrap}
+.nc-contact{font-size:0.72rem;color:#8b3a3a;font-family:'IBM Plex Mono',monospace;margin-top:3px}
+.nc-datetime{font-size:0.7rem;color:#7a7068;font-family:'IBM Plex Mono',monospace;margin-top:1px}
 .cc{background:#fff;border:1px solid #d4cfc5;padding:13px 14px;margin-bottom:8px;border-radius:0 3px 3px 0}
 .cc-inner{display:flex;justify-content:space-between;gap:8px}
 .cc-name{font-size:0.95rem;font-weight:500;margin-bottom:4px}
@@ -155,7 +157,7 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
   <button class="tab active" onclick="switchTab(this,'timeline')">Timeline</button>
   <button class="tab" onclick="switchTab(this,'actions')">Tasks<span class="badge" id="badge"></span></button>
   <button class="tab" onclick="switchTab(this,'questions')">Questions</button>
-  <button class="tab" onclick="switchTab(this,'notes')">Notes</button>
+  <button class="tab" onclick="switchTab(this,'notes')">Comm Log</button>
   <button class="tab" onclick="switchTab(this,'contacts')">Contacts</button>
   <button class="tab" onclick="switchTab(this,'appointments')">Appointments</button>
 </div>
@@ -234,18 +236,33 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 </div>
 
 <div class="panel" id="panel-notes">
-  <div class="sec-head"><h2>General <em>Notes</em></h2><button class="btn" onclick="tog('f-notes')">+ Add Note</button></div>
+  <div class="sec-head"><h2>Communication <em>Log</em></h2><button class="btn" onclick="tog('f-notes')">+ Add Entry</button></div>
   <div class="form-box" id="f-notes">
     <div class="form-row">
-      <div class="fg" style="flex:2"><label>Title</label><input id="n-title" placeholder="e.g. Conversation with hospitalist"/></div>
+      <div class="fg" style="flex:1"><label>Date</label><input type="date" id="n-date"/></div>
+      <div class="fg" style="flex:1"><label>Time</label><input type="time" id="n-time"/></div>
+      <div class="fg" style="flex:2"><label>Contact / Person</label><select id="n-contact" onchange="handleNoteContactSelect()"></select></div>
+    </div>
+    <div id="new-note-contact-row" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div class="fg"><label>Full Name</label><input id="nnc-name" placeholder="e.g. Dr. Sarah Chen"/></div>
+        <div class="fg"><label>Role</label><select id="nnc-role"><option>Attending Physician</option><option>Neurosurgeon</option><option>Oncologist</option><option>Radiologist</option><option>Neurologist</option><option>Hospitalist</option><option>Nurse / Charge Nurse</option><option>Social Worker</option><option>Patient Advocate</option><option>Case Manager</option><option>Family Member</option><option>Other</option></select></div>
+        <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+          <button class="btn" onclick="saveNewContactFromNote()">Save Contact</button>
+          <button class="btn btn-ghost" onclick="cancelNewContactFromNote()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="fg" style="flex:2"><label>Title / Subject</label><input id="n-title" placeholder="e.g. Call with hospitalist about discharge plan"/></div>
       <div class="fg" style="flex:1"><label>Category</label><select id="n-cat"><option>General</option><option>Provider Conversation</option><option>Family Discussion</option><option>Symptoms / Observations</option><option>Medications</option><option>Insurance / Admin</option></select></div>
     </div>
-    <div class="form-row"><div class="fg"><label>Note</label><textarea id="n-body" rows="5" placeholder="Write anything to remember…"></textarea></div></div>
-    <button class="btn" onclick="addNote()">Save Note</button>
+    <div class="form-row"><div class="fg"><label>Notes</label><textarea id="n-body" rows="5" placeholder="What was discussed, decisions made, next steps…"></textarea></div></div>
+    <button class="btn" onclick="addNote()">Save Entry</button>
     <button class="btn btn-ghost" style="margin-left:8px" onclick="tog('f-notes')">Cancel</button>
   </div>
   <div id="note-list"></div>
-  <div class="empty" id="n-empty" style="display:none">No notes yet.</div>
+  <div class="empty" id="n-empty" style="display:none">No entries yet.</div>
 </div>
 
 <div class="panel" id="panel-contacts">
@@ -421,6 +438,7 @@ var apptTypeFilter = "All";
 var apptTypes = ["PCP","Imaging","Neurology","Neurosurgery","Physical Therapy","Home Health"];
 var editApptId = null;
 var apptCompleteId = null;
+var pendingNoteContact = null;
 
 // ── Patient ──────────────────────────────────────────────────────────────────
 window.savePatient = function() {
@@ -941,13 +959,20 @@ function renderQuestions() {
 }
 
 // ── Notes ────────────────────────────────────────────────────────────────────
+// Initialize comm log date field
+setTimeout(function(){ sv("n-date", today()); }, 0);
+
 window.addNote = function() {
   var title = gv("n-title").trim();
   var body  = gv("n-body").trim();
   if (!title && !body) { alert("Please enter a title or note."); return; }
+  var contact = gv("n-contact");
+  if (contact === "__add__") contact = "";
   var id = uid();
-  r("notes/"+id).set({id:id, ts:new Date().toISOString(), title:title||"(untitled)", body:body, category:gv("n-cat")});
-  sv("n-title",""); sv("n-body",""); sv("n-cat","General");
+  r("notes/"+id).set({id:id, ts:new Date().toISOString(), date:gv("n-date")||today(), time:gv("n-time"), contactName:contact, title:title||"(untitled)", body:body, category:gv("n-cat")});
+  sv("n-title",""); sv("n-body",""); sv("n-cat","General"); sv("n-date",today()); sv("n-time","");
+  document.getElementById("new-note-contact-row").style.display = "none";
+  renderNoteContactSelect();
   tog("f-notes");
 };
 
@@ -955,7 +980,7 @@ window.deleteNote = function(id) { r("notes/"+id).remove(); };
 window.openEditNote = function(id) { editNoteId = id; renderNotes(); setTimeout(function(){ var el=document.getElementById("en-title-"+id); if(el)el.focus(); },50); };
 window.cancelEditNote = function() { editNoteId = null; renderNotes(); };
 window.saveEditNote = function(id) {
-  r("notes/"+id).update({ title:document.getElementById("en-title-"+id).value.trim()||"(untitled)", category:document.getElementById("en-cat-"+id).value, body:document.getElementById("en-body-"+id).value.trim() });
+  r("notes/"+id).update({ title:document.getElementById("en-title-"+id).value.trim()||"(untitled)", category:document.getElementById("en-cat-"+id).value, date:document.getElementById("en-date-"+id).value||today(), time:document.getElementById("en-time-"+id).value, contactName:document.getElementById("en-contact-"+id).value, body:document.getElementById("en-body-"+id).value.trim() });
   editNoteId = null;
   renderNotes();
 };
@@ -965,29 +990,89 @@ r("notes").on("value", function(snap) {
   renderNotes();
 });
 
+// ── Communication Log contact helpers ────────────────────────────────────────
+function renderNoteContactSelect() {
+  var sel = document.getElementById("n-contact");
+  if (!sel) return;
+  var cur = pendingNoteContact || sel.value;
+  pendingNoteContact = null;
+  var contacts = Object.values(state.contacts).sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); });
+  sel.innerHTML = '<option value="">— None —</option>'
+    + contacts.map(function(c){ return '<option value="'+esc(c.name)+'"'+(c.name===cur?" selected":"")+'>'+esc(c.name)+'</option>'; }).join("")
+    + '<option value="__add__" style="color:#8b3a3a;font-style:italic">＋ Add new contact…</option>';
+  if (cur && cur !== "__add__") sel.value = cur;
+}
+
+window.handleNoteContactSelect = function() {
+  var row = document.getElementById("new-note-contact-row");
+  if (gv("n-contact") === "__add__") {
+    row.style.display = "block";
+    setTimeout(function(){ document.getElementById("nnc-name").focus(); }, 50);
+  } else {
+    row.style.display = "none";
+  }
+};
+
+window.saveNewContactFromNote = function() {
+  var name = document.getElementById("nnc-name").value.trim();
+  if (!name) { alert("Please enter a name."); return; }
+  var role = document.getElementById("nnc-role").value;
+  var id = uid();
+  r("contacts/"+id).set({id:id, name:name, role:role, org:"", phone:"", email:"", bestTime:"", notes:""});
+  pendingNoteContact = name;
+  document.getElementById("new-note-contact-row").style.display = "none";
+  document.getElementById("nnc-name").value = "";
+};
+
+window.cancelNewContactFromNote = function() {
+  document.getElementById("n-contact").value = "";
+  document.getElementById("new-note-contact-row").style.display = "none";
+  document.getElementById("nnc-name").value = "";
+};
+
 function renderNotes() {
   var list = document.getElementById("note-list");
-  var items = Object.values(state.notes).sort(function(a,b){return new Date(b.ts)-new Date(a.ts);});
+  var items = Object.values(state.notes).sort(function(a,b){
+    // Sort by date+time if available, otherwise by timestamp
+    var da = a.date ? new Date(a.date+"T"+(a.time||"00:00")) : new Date(a.ts);
+    var db = b.date ? new Date(b.date+"T"+(b.time||"00:00")) : new Date(b.ts);
+    return db - da;
+  });
   if (!items.length) { list.innerHTML=""; show("n-empty"); return; }
   hide("n-empty");
   var FN = "border:1px solid #d4cfc5;padding:7px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.84rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:6px";
+  var ncCats = ["General","Provider Conversation","Family Discussion","Symptoms / Observations","Medications","Insurance / Admin"];
   list.innerHTML = items.map(function(n) {
     if (editNoteId === n.id) {
-      var ncOpts = ["General","Provider Conversation","Family Discussion","Symptoms / Observations","Medications","Insurance / Admin"].map(function(c){ return '<option'+(c===n.category?" selected":"")+'>'+c+'</option>'; }).join("");
+      var ncOpts = ncCats.map(function(c){ return '<option'+(c===n.category?" selected":"")+'>'+c+'</option>'; }).join("");
+      var contactsForEdit = Object.values(state.contacts).sort(function(a,b){ return (a.name||"").localeCompare(b.name||""); });
+      var contactOptsEdit = '<option value="">— None —</option>'
+        + contactsForEdit.map(function(c){ return '<option value="'+esc(c.name)+'"'+((n.contactName&&c.name===n.contactName)?" selected":"")+'>'+esc(c.name)+'</option>'; }).join("");
       return '<div class="nc">'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">'
+        +'<input type="date" id="en-date-'+n.id+'" value="'+esc(n.date||today())+'" style="flex:1;min-width:120px;'+FN+'margin-bottom:0"/>'
+        +'<input type="time" id="en-time-'+n.id+'" value="'+esc(n.time||"")+'" style="flex:1;min-width:100px;'+FN+'margin-bottom:0"/>'
+        +'<select id="en-contact-'+n.id+'" style="flex:2;min-width:140px;'+FN+'margin-bottom:0">'+contactOptsEdit+'</select>'
+        +'</div>'
         +'<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
-        +'<input id="en-title-'+n.id+'" value="'+esc(n.title)+'" placeholder="Title" style="flex:2;min-width:160px;'+FN+'margin-bottom:0"/>'
+        +'<input id="en-title-'+n.id+'" value="'+esc(n.title)+'" placeholder="Title / Subject" style="flex:2;min-width:160px;'+FN+'margin-bottom:0"/>'
         +'<select id="en-cat-'+n.id+'" style="flex:1;min-width:140px;'+FN+'margin-bottom:0">'+ncOpts+'</select>'
         +'</div>'
-        +'<textarea id="en-body-'+n.id+'" rows="4" placeholder="Note…" style="'+FN+'resize:vertical">'+esc(n.body||"")+'</textarea>'
+        +'<textarea id="en-body-'+n.id+'" rows="4" placeholder="Notes…" style="'+FN+'resize:vertical">'+esc(n.body||"")+'</textarea>'
         +'<div style="display:flex;gap:6px"><button class="btn btn-green" style="font-size:0.68rem;padding:6px 12px" onclick="saveEditNote(\''+n.id+'\')">Save</button>'
         +'<button class="btn btn-ghost" style="font-size:0.68rem;padding:6px 12px" onclick="cancelEditNote()">Cancel</button></div>'
         +'</div>';
     }
-    return '<div class="nc"><div class="nc-head"><div><div class="nc-cat">'+esc(n.category)+'</div><div class="nc-title">'+esc(n.title)+'</div></div><div style="text-align:right"><div class="nc-ts">'+fmtTS(n.ts)+'</div>'
-      +'<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px"><button class="btn-sm-blue" style="padding:3px 8px;font-size:0.62rem" onclick="openEditNote(\''+n.id+'\')">✏</button>'
-      +'<button class="del" onclick="deleteNote(\''+n.id+'\')">✕</button></div></div></div>'
-      +(n.body?'<div class="nc-body">'+esc(n.body)+'</div>':"")+'</div>';
+    var dateTimeStr = n.date ? (fmtD(n.date) + (n.time ? " · " + fmtTime(n.time) : "")) : fmtTS(n.ts);
+    return '<div class="nc"><div class="nc-head"><div>'
+      +'<div class="nc-cat">'+esc(n.category)+'</div>'
+      +'<div class="nc-title">'+esc(n.title)+'</div>'
+      +(n.contactName ? '<div class="nc-contact">👤 '+esc(n.contactName)+'</div>' : "")
+      +'<div class="nc-datetime">'+dateTimeStr+'</div>'
+      +'</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">'
+      +'<button class="btn-sm-blue" style="padding:3px 8px;font-size:0.62rem" onclick="openEditNote(\''+n.id+'\')">✏</button>'
+      +'<button class="del" onclick="deleteNote(\''+n.id+'\')">✕</button></div></div>'
+      +(n.body ? '<div class="nc-body">'+esc(n.body)+'</div>' : "")+'</div>';
   }).join("");
 }
 
@@ -1029,6 +1114,7 @@ window.saveEditContact = function(id) {
 r("contacts").on("value", function(snap) {
   state.contacts = snap.val()||{};
   renderContacts();
+  renderNoteContactSelect();
 });
 
 function renderContacts() {
@@ -1111,7 +1197,7 @@ function renderContactFilterPills() {
   if (!row) return;
   var pills = ["All"].concat(contactOrgs).map(function(o){
     var active = o === contactOrgFilter;
-    return '<button onclick="setContactOrgFilter(\''+o.replace(/'/g,"\\'")+'\'')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#6b3a8b":"#d4cfc5")+';background:'+(active?"#6b3a8b":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(o)+'</button>';
+    return '<button onclick="setContactOrgFilter(\''+o.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#6b3a8b":"#d4cfc5")+';background:'+(active?"#6b3a8b":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(o)+'</button>';
   }).join("");
   row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
 }
@@ -1268,7 +1354,7 @@ function renderApptFilterPills() {
   if (!row) return;
   var pills = ["All"].concat(apptTypes).map(function(t){
     var active = t === apptTypeFilter;
-    return '<button onclick="setApptTypeFilter(\''+t.replace(/'/g,"\\'")+'\'')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#2d7a8a":"#d4cfc5")+';background:'+(active?"#2d7a8a":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(t)+'</button>';
+    return '<button onclick="setApptTypeFilter(\''+t.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#2d7a8a":"#d4cfc5")+';background:'+(active?"#2d7a8a":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(t)+'</button>';
   }).join("");
   row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
 }
