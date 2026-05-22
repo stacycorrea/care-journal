@@ -267,7 +267,16 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 
 <div class="panel" id="panel-contacts">
   <div class="sec-head"><h2>Key <em>Contacts</em></h2><button class="btn btn-purple" onclick="tog('f-contacts')">+ Add</button></div>
-  <div id="contact-filter-row" style="margin-bottom:12px"></div>
+  <div id="contact-filter-row" style="margin-bottom:8px"></div>
+  <div id="add-org-inline" style="display:none;margin-bottom:12px;padding:10px 12px;background:#faf7f2;border:1px solid #d4cfc5;border-radius:3px">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div class="fg" style="max-width:240px"><label>New Organization Name</label><input id="add-org-inline-input" placeholder="e.g. Kaiser" onkeydown="if(event.key==='Enter')saveNewOrgInline()"/></div>
+      <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+        <button class="btn btn-purple" onclick="saveNewOrgInline()">Save</button>
+        <button class="btn btn-ghost" onclick="cancelNewOrgInline()">Cancel</button>
+      </div>
+    </div>
+  </div>
   <div class="form-box" id="f-contacts">
     <div class="form-row">
       <div class="fg" style="flex:2"><label>Full Name</label><input id="c-name" placeholder="e.g. Dr. Sarah Chen"/></div>
@@ -1199,7 +1208,8 @@ function renderContactFilterPills() {
     var active = o === contactOrgFilter;
     return '<button onclick="setContactOrgFilter(\''+o.replace(/'/g,"\\'")+'\')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#6b3a8b":"#d4cfc5")+';background:'+(active?"#6b3a8b":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(o)+'</button>';
   }).join("");
-  row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
+  var addBtn = '<button onclick="showAddOrgInline()" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px dashed #6b3a8b;background:transparent;color:#6b3a8b;cursor:pointer;border-radius:2px">＋ Add org</button>';
+  row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'+pills+addBtn+'</div>';
 }
 
 window.setContactOrgFilter = function(org) {
@@ -1235,6 +1245,33 @@ window.cancelNewOrg = function() {
   document.getElementById("c-org").value = contactOrgs[0] || "Humana";
   document.getElementById("new-org-row").style.display = "none";
   document.getElementById("new-org-input").value = "";
+};
+
+// Inline org management from the contacts page (outside the add form)
+window.showAddOrgInline = function() {
+  var row = document.getElementById("add-org-inline");
+  if (!row) return;
+  row.style.display = "block";
+  setTimeout(function(){ document.getElementById("add-org-inline-input").focus(); }, 50);
+};
+
+window.saveNewOrgInline = function() {
+  var raw = document.getElementById("add-org-inline-input").value.trim();
+  if (!raw) return;
+  var name = raw.replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+  if (contactOrgs.indexOf(name) === -1) {
+    contactOrgs.push(name);
+    r("contactOrgs").set(contactOrgs);
+  }
+  document.getElementById("add-org-inline").style.display = "none";
+  document.getElementById("add-org-inline-input").value = "";
+  renderContactOrgSelect();
+  renderContactFilterPills();
+};
+
+window.cancelNewOrgInline = function() {
+  document.getElementById("add-org-inline").style.display = "none";
+  document.getElementById("add-org-inline-input").value = "";
 };
 
 r("contactOrgs").on("value", function(snap) {
