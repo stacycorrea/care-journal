@@ -237,14 +237,24 @@ h1{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:400}
 
 <div class="panel" id="panel-contacts">
   <div class="sec-head"><h2>Key <em>Contacts</em></h2><button class="btn btn-purple" onclick="tog('f-contacts')">+ Add</button></div>
+  <div id="contact-filter-row" style="margin-bottom:12px"></div>
   <div class="form-box" id="f-contacts">
     <div class="form-row">
       <div class="fg" style="flex:2"><label>Full Name</label><input id="c-name" placeholder="e.g. Dr. Sarah Chen"/></div>
       <div class="fg" style="flex:2"><label>Role</label><select id="c-role"><option>Attending Physician</option><option>Neurosurgeon</option><option>Oncologist</option><option>Radiologist</option><option>Neurologist</option><option>Hospitalist</option><option>Nurse / Charge Nurse</option><option>Social Worker</option><option>Patient Advocate</option><option>Case Manager</option><option>Family Member</option><option>Other</option></select></div>
     </div>
     <div class="form-row">
-      <div class="fg"><label>Department</label><input id="c-dept" placeholder="e.g. Neuro-Oncology"/></div>
+      <div class="fg"><label>Organization</label><select id="c-org" onchange="handleOrgSelect()"></select></div>
       <div class="fg"><label>Phone</label><input id="c-phone" placeholder="(619) 555-0123"/></div>
+    </div>
+    <div id="new-org-row" style="display:none;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="fg"><label>New Organization</label><input id="new-org-input" placeholder="e.g. Kaiser" onkeydown="if(event.key==='Enter')saveNewOrg()"/></div>
+        <div style="display:flex;gap:6px;padding-bottom:1px;flex-shrink:0">
+          <button class="btn btn-purple" onclick="saveNewOrg()">Add</button>
+          <button class="btn btn-ghost" onclick="cancelNewOrg()">Cancel</button>
+        </div>
+      </div>
     </div>
     <div class="form-row">
       <div class="fg"><label>Email</label><input id="c-email" placeholder="dr.chen@ucsd.edu"/></div>
@@ -345,6 +355,8 @@ var editNoteId = null;
 var editContactId = null;
 var eventTypeFilter = "All";
 var customEventTypes = [];
+var contactOrgFilter = "All";
+var contactOrgs = ["Humana","UCSD","Perlman"];
 
 // ── Patient ──────────────────────────────────────────────────────────────────
 window.savePatient = function() {
@@ -925,10 +937,14 @@ var roleColors = {
 window.addContact = function() {
   var name = gv("c-name").trim();
   if (!name) { alert("Please enter a name."); return; }
+  var org = gv("c-org");
+  if (!org || org === "__add__") org = "";
   var id = uid();
-  r("contacts/"+id).set({id:id, name:name, role:gv("c-role"), dept:gv("c-dept").trim(), phone:gv("c-phone").trim(), email:gv("c-email").trim(), bestTime:gv("c-time").trim(), notes:gv("c-notes").trim()});
-  ["c-name","c-dept","c-phone","c-email","c-time","c-notes"].forEach(function(x){sv(x,"");});
+  r("contacts/"+id).set({id:id, name:name, role:gv("c-role"), org:org, phone:gv("c-phone").trim(), email:gv("c-email").trim(), bestTime:gv("c-time").trim(), notes:gv("c-notes").trim()});
+  ["c-name","c-phone","c-email","c-time","c-notes"].forEach(function(x){sv(x,"");});
   sv("c-role","Attending Physician");
+  document.getElementById("new-org-row").style.display = "none";
+  renderContactOrgSelect();
   tog("f-contacts");
 };
 
@@ -938,7 +954,7 @@ window.cancelEditContact = function() { editContactId = null; renderContacts(); 
 window.saveEditContact = function(id) {
   var name = document.getElementById("ec-name-"+id).value.trim();
   if (!name) { alert("Please enter a name."); return; }
-  r("contacts/"+id).update({ name:name, role:document.getElementById("ec-role-"+id).value, dept:document.getElementById("ec-dept-"+id).value.trim(), phone:document.getElementById("ec-phone-"+id).value.trim(), email:document.getElementById("ec-email-"+id).value.trim(), bestTime:document.getElementById("ec-time-"+id).value.trim(), notes:document.getElementById("ec-notes-"+id).value.trim() });
+  r("contacts/"+id).update({ name:name, role:document.getElementById("ec-role-"+id).value, org:document.getElementById("ec-org-"+id).value, phone:document.getElementById("ec-phone-"+id).value.trim(), email:document.getElementById("ec-email-"+id).value.trim(), bestTime:document.getElementById("ec-time-"+id).value.trim(), notes:document.getElementById("ec-notes-"+id).value.trim() });
   editContactId = null;
   renderContacts();
 };
@@ -949,8 +965,13 @@ r("contacts").on("value", function(snap) {
 });
 
 function renderContacts() {
+  renderContactFilterPills();
   var list = document.getElementById("contact-list");
   var all = Object.values(state.contacts);
+  // Apply org filter (support legacy dept field too)
+  if (contactOrgFilter !== "All") {
+    all = all.filter(function(c){ return (c.org || c.dept || "") === contactOrgFilter; });
+  }
   if (!all.length) { list.innerHTML=""; show("c-empty"); return; }
   hide("c-empty");
   var groups = [
@@ -958,14 +979,19 @@ function renderContacts() {
     {title:"Support Staff", roles:["Nurse / Charge Nurse","Social Worker","Patient Advocate","Case Manager"]},
     {title:"Other",         roles:["Family Member","Other"]}
   ];
+  var FC = "border:1px solid #d4cfc5;padding:6px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:5px";
+  var roleOpts = ["Attending Physician","Neurosurgeon","Oncologist","Radiologist","Neurologist","Hospitalist","Nurse / Charge Nurse","Social Worker","Patient Advocate","Case Manager","Family Member","Other"];
   list.innerHTML = groups.map(function(g) {
     var items = all.filter(function(c){return g.roles.indexOf(c.role)>=0;});
     if (!items.length) return "";
-    var FC = "border:1px solid #d4cfc5;padding:6px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:0.82rem;background:#f5f0e8;width:100%;box-sizing:border-box;outline:none;margin-bottom:5px";
-    var roleOpts = ["Attending Physician","Neurosurgeon","Oncologist","Radiologist","Neurologist","Hospitalist","Nurse / Charge Nurse","Social Worker","Patient Advocate","Case Manager","Family Member","Other"];
     return '<div class="grp-head">'+g.title+'</div>'+items.map(function(c){
       var s = roleColors[c.role]||roleColors["Other"];
+      var cOrg = c.org || c.dept || "";
       if (editContactId === c.id) {
+        // Build org select for edit — include contact's current org if not in list
+        var orgOptsForEdit = contactOrgs.slice();
+        if (cOrg && orgOptsForEdit.indexOf(cOrg) === -1) orgOptsForEdit.unshift(cOrg);
+        var orgSelectOpts = orgOptsForEdit.map(function(o){ return '<option value="'+esc(o)+'"'+(o===cOrg?" selected":"")+'>'+esc(o)+'</option>'; }).join("");
         return '<div class="cc" style="border-left:4px solid '+s.c+'">'
           +'<div style="width:100%;display:flex;flex-direction:column;gap:2px">'
           +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
@@ -973,7 +999,7 @@ function renderContacts() {
           +'<select id="ec-role-'+c.id+'" style="flex:1;min-width:150px;'+FC+'margin-bottom:0">'+roleOpts.map(function(ro){ return '<option'+(ro===c.role?" selected":"")+'>'+ro+'</option>'; }).join("")+'</select>'
           +'</div>'
           +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px">'
-          +'<input id="ec-dept-'+c.id+'" value="'+esc(c.dept||"")+'" placeholder="Department" style="flex:1;min-width:130px;'+FC+'margin-bottom:0"/>'
+          +'<select id="ec-org-'+c.id+'" style="flex:1;min-width:130px;'+FC+'margin-bottom:0">'+orgSelectOpts+'</select>'
           +'<input id="ec-phone-'+c.id+'" value="'+esc(c.phone||"")+'" placeholder="Phone" style="flex:1;min-width:130px;'+FC+'margin-bottom:0"/>'
           +'</div>'
           +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:5px">'
@@ -988,7 +1014,7 @@ function renderContacts() {
       }
       return '<div class="cc" style="border-left:4px solid '+s.c+'"><div class="cc-inner"><div style="flex:1">'
         +'<div class="cc-name">'+esc(c.name)+'<span class="cc-badge" style="background:'+s.bg+';color:'+s.c+'">'+esc(c.role)+'</span></div>'
-        +(c.dept?'<div class="cc-dept">'+esc(c.dept)+'</div>':"")
+        +(cOrg?'<div class="cc-dept" style="color:#6b3a8b">🏢 '+esc(cOrg)+'</div>':"")
         +'<div class="cc-links">'
         +(c.phone?'<a href="tel:'+esc(c.phone)+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:0.85rem">📞 '+esc(c.phone)+'</a>':"")
         +(c.email?'<a href="mailto:'+esc(c.email)+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:0.82rem;word-break:break-all">✉ '+esc(c.email)+'</a>':"")
@@ -1000,6 +1026,74 @@ function renderContacts() {
     }).join("");
   }).join("");
 }
+
+// ── Contact Orgs ─────────────────────────────────────────────────────────────
+function renderContactOrgSelect() {
+  var sel = document.getElementById("c-org");
+  if (!sel) return;
+  var cur = sel.value;
+  sel.innerHTML = contactOrgs.map(function(o){
+    return '<option value="'+esc(o)+'">'+esc(o)+'</option>';
+  }).join("") + '<option value="__add__" style="color:#6b3a8b;font-style:italic">＋ Add new…</option>';
+  if (cur && cur !== "__add__" && contactOrgs.indexOf(cur) !== -1) sel.value = cur;
+  renderContactFilterPills();
+}
+
+function renderContactFilterPills() {
+  var row = document.getElementById("contact-filter-row");
+  if (!row) return;
+  var pills = ["All"].concat(contactOrgs).map(function(o){
+    var active = o === contactOrgFilter;
+    return '<button onclick="setContactOrgFilter(\''+o.replace(/'/g,"\\'")+'\'')" style="padding:5px 12px;font-size:0.63rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.07em;border:1px solid '+(active?"#6b3a8b":"#d4cfc5")+';background:'+(active?"#6b3a8b":"transparent")+';color:'+(active?"#fff":"#7a7068")+';cursor:pointer;border-radius:2px">'+esc(o)+'</button>';
+  }).join("");
+  row.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:6px">'+pills+'</div>';
+}
+
+window.setContactOrgFilter = function(org) {
+  contactOrgFilter = org;
+  renderContacts();
+};
+
+window.handleOrgSelect = function() {
+  var row = document.getElementById("new-org-row");
+  if (gv("c-org") === "__add__") {
+    row.style.display = "block";
+    setTimeout(function(){ document.getElementById("new-org-input").focus(); }, 50);
+  } else {
+    row.style.display = "none";
+  }
+};
+
+window.saveNewOrg = function() {
+  var raw = document.getElementById("new-org-input").value.trim();
+  if (!raw) return;
+  var name = raw.replace(/\b\w/g, function(l){ return l.toUpperCase(); });
+  if (contactOrgs.indexOf(name) === -1) {
+    contactOrgs.push(name);
+    r("contactOrgs").set(contactOrgs);
+  }
+  renderContactOrgSelect();
+  document.getElementById("c-org").value = name;
+  document.getElementById("new-org-row").style.display = "none";
+  document.getElementById("new-org-input").value = "";
+};
+
+window.cancelNewOrg = function() {
+  document.getElementById("c-org").value = contactOrgs[0] || "Humana";
+  document.getElementById("new-org-row").style.display = "none";
+  document.getElementById("new-org-input").value = "";
+};
+
+r("contactOrgs").on("value", function(snap) {
+  var val = snap.val();
+  if (val) {
+    contactOrgs = Array.isArray(val) ? val : Object.values(val);
+  } else {
+    r("contactOrgs").set(contactOrgs);
+  }
+  renderContactOrgSelect();
+  renderContacts();
+});
 
 // ── Show app ─────────────────────────────────────────────────────────────────
 document.getElementById("loading").style.display = "none";
